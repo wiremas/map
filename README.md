@@ -15,7 +15,7 @@ pip install dill
 
 ## async.map()
 ```python
-async.map(func, iterable, callback=None, chunk_size=1, callback=None, modules=None)
+async.map(func, iterable, callback=None, chunk_size=1, callback=None, modules=None, runtime_globals=None)
 ```
 **chunk_size**<br/>
 The chunk_size argument chops the iterable into a number of chunks which
