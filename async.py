@@ -4,6 +4,7 @@ to run the multiprocessing module inside Maya's python interpreter """
 
 import os
 import dill
+import copy
 import types
 import base64
 import platform
@@ -12,7 +13,7 @@ import subprocess
 from functools import wraps
 
 
-def map(func, iterable, chunk_size=1, callback=None, modules=None):
+def map(func, iterable, chunk_size=1, callback=None, modules=None, runtime_globals=None):
     """ A wrapper function for multiprocessing.map().
     A parallel equivalent of the map() built-in function (it supports only one
     iterable argument though) in a seperate subprocess.
@@ -33,23 +34,43 @@ def map(func, iterable, chunk_size=1, callback=None, modules=None):
     :param chunk_size: chunks size per process
     :param callback: function that will be called when the subprocess is finished
     :param modules: modules that will imported in the child process
+    :param runtime_globals: add objects that will be needed during runtime
     :return: Thread object if callback, else result
     """
 
     if not isinstance(func, types.FunctionType):
         raise RuntimeError('First argument must be of type function')
 
-        #  raise RuntimeError('First argument must be of type function')
-
     client = os.path.join(os.path.dirname(os.path.realpath(__file__)),
                           'services', 'map_async.py')
+
+    #  TODO - something like this would be more elegant since the user
+    #  wouldn't have to pass modules and runtime_globals
+    #  unfortunately, when decoding/deserialization python picks up the
+    #  the subprocess function.func_globals
+    #  f_globals = func.func_globals.copy()
 
     encoded_code = base64.encodestring(dill.dumps(func.func_code))
     encoded_list = base64.encodestring(dill.dumps(iterable))
     encoded_chunksize = base64.encodestring(dill.dumps(chunk_size))
-    encoded_modules = base64.encodestring(dill.dumps(modules))
+    encoded_modules = base64.encodestring(dill.dumps(modules if modules else []))
+    encoded_globals = base64.encodestring(dill.dumps(runtime_globals if runtime_globals else []))
     cmd = ['python', client, encoded_code, encoded_list, encoded_chunksize,
-           encoded_modules]
+           encoded_modules, encoded_globals]
+
+    return start_subprocess(cmd, callback)
+
+def apply(func, args=None, kwargs=None, callback=None, modules=None, runtime_globals=None):
+
+    client = os.path.join(os.path.dirname(os.path.realpath(__file__)),
+                          'services', 'apply_async.py')
+    encoded_code = base64.encodestring(dill.dumps(func.func_code))
+    encoded_args = base64.encodestring(dill.dumps(args))
+    encoded_kwargs = base64.encodestring(dill.dumps(kwargs))
+    encoded_modules = base64.encodestring(dill.dumps(modules if modules else []))
+    encoded_globals = base64.encodestring(dill.dumps(runtime_globals if runtime_globals else []))
+    cmd = ['python', client, encoded_code, encoded_args, encoded_kwargs,
+           encoded_modules, encoded_globals]
 
     return start_subprocess(cmd, callback)
 
