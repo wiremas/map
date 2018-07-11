@@ -2,13 +2,14 @@
 maya asynchronous processing
 
 # Overview
-**map** allows to evaluate python functions from within Maya in an independent Python
-interpreter wrapping the multiprocessing package to achieve asynchronous processing.
-In particular *map* wrappes the multiprocessing.Pool().map() method, a parallel equivalent
-of python's build-in map() function.
+**map** provides a convenient way to serialize python code and objects and send them to an
+independent Python interpreter to achieve parallelism with python from within Maya.
+In particular, **map** wrappes *multiprocessing.Pool().map* and *apply()* in the python
+iterpreter to achieve concurrency.
+
 
 # Dependencies
-**map** depends on *dill*.
+*dill* needs to be installed in order to run **map**.
 ```
 pip install dill
 ```
@@ -17,6 +18,8 @@ pip install dill
 ```python
 async.map(func, iterable, callback=None, chunk_size=1, callback=None, modules=None, runtime_globals=None)
 ```
+parallel equivalent of python's builtin *map()*.
+
 **chunk_size**<br/>
 The chunk_size argument chops the iterable into a number of chunks which
 are submitted to the process pool as separate tasks. The (approximate) size
@@ -31,6 +34,23 @@ returned. Otherwise this functions waits for the result and returns it.
 Any module used in the function must be given in the modules argument.
 The modules argument must be a list of module names.
 
+**runtime_globals**<br/>
+This argument takes any kind of object that is needed by the executed function.
+
+
+## async.apply()
+```python
+async.apply(func, args=None, kwargs=None, callback=None, modules=None, runtime_globals=None)
+```
+parallel euqivalent of python's builtin *apply()*.
+
+
+# Limitations
+Since the subprocess runs in a separate interpreter there are a few limitations on what can be done
+- Running Maya commands in the subprocess is not supported.
+- Modules used in the function must be added as argument in order to be imported.
+- Global variable that are needed for the function call must be passed to runtime_globals argument.
+- TODO
 
 
 # Examples
@@ -57,7 +77,7 @@ def on_exit(result):
     print 'Subprocess done:', result
         
 double_arg = [[1,2], [3,4], [5,6]]
-r = async.map(double_arg_func, double_arg, callback=on_exit, modules=['time as t', 'os', 'numpy'])
+r = async.map(double_arg_func, double_arg, callback=on_exit, modules=['time as t'])
 ```
 
 Map to a function which takes multiple lists as arguments and wait for the subprocess to finish
@@ -68,5 +88,25 @@ def double_list_arg_func(l1, l2):
         return l1, l2
     
 double_list_arg =[[[1,2],[2,3]],[[4,5],[6,7]]]
-r = async.map(double_list_arg_func, double_list_arg, modules=['time as t', 'os', 'numpy'])
+r = async.map(double_list_arg_func, double_list_arg, modules=['time as t'])
+```
+
+Retun custom object by iterator object
+```python
+obj = CustomIter(10)
+r = async.map(simple_return_func, obj, modules=['time as t'], runtime_globals=[ReturnObject])
+print r
+
+class CustomIter(object):
+    def __init__(self, maximum=10):
+        self.maximum = maximum
+
+    def __iter__(self):
+        t.sleep(0.01)
+        for i in range(self.maximum):
+            yield ReturnObject(i)
+
+class ReturnObject(object):
+    def __init__(self, value):
+        self.value = value
 ```
